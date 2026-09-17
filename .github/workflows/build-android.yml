@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       dev:
-        description: 'Dev build (dev OAuth config/icon/app id, no Drive backup wiring)'
+        description: 'Dev build (dev icon/app id)'
         required: false
         type: boolean
         default: false
@@ -44,7 +44,7 @@ jobs:
         run: npm install -g pnpm
 
       - name: Clone PokeRogue
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} https://github.com/pagefaultgames/pokerogue.git pokerogue-src
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
 
       - name: Get PokeRogue version
         id: pokerogue_version
@@ -53,16 +53,26 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Apply patches
+        env:
+          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
         run: bash ${{ github.workspace }}/scripts/apply-patches.sh android
 
-      - name: Inject build number into banner
+      - name: Inject build name and number into banner
         run: |
           BUILD_NUM=${{ inputs.build_number || github.run_number }}
+          sed -i "s/BUILD_NAME_PLACEHOLDER/${{ vars.BUILD_NAME }}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           if [ "${{ inputs.dev }}" = "true" ]; then
             sed -i "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM} DEV/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           else
             sed -i "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
+
+      - name: Inject package name into Android configs
+        run: |
+          sed -i "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" \
+            ${{ github.workspace }}/configs/android/capacitor/capacitor.config.json \
+            ${{ github.workspace }}/configs/android/capacitor/capacitor.config-dev.json \
+            ${{ github.workspace }}/configs/android/java/MainActivity.java
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -71,7 +81,7 @@ jobs:
       - name: Install Capacitor
         working-directory: pokerogue-src
         run: |
-            pnpm add @capacitor/core@8.4.1 @capacitor/cli@8.4.1 @capacitor/android@8.4.1 @capacitor/filesystem@8.1.2 @capacitor/share@8.0.1 @capacitor/status-bar@8.0.2 @capgo/capacitor-social-login@8.3.33
+            pnpm add @capacitor/core@8.4.1 @capacitor/cli@8.4.1 @capacitor/android@8.4.1 @capacitor/filesystem@8.1.2 @capacitor/share@8.0.1 @capacitor/status-bar@8.0.2
 
       - name: Configure Capacitor
         working-directory: pokerogue-src
@@ -105,7 +115,7 @@ jobs:
           DEST=$(find android/app/src/main/java -name "MainActivity.java" | head -n 1)
           cp ${{ github.workspace }}/configs/android/java/MainActivity.java "$DEST"
           if [ "${{ inputs.dev }}" = "true" ]; then
-            sed -i "s/^package xyz.scooom.pkr;/package xyz.scooom.pkrdev;/" "$DEST"
+            sed -i "s/^package ${{ vars.PKG_NAME }};/package ${{ vars.PKG_NAME }}dev;/" "$DEST"
           fi
 
       - name: Patch AndroidManifest to prevent keyboard resize

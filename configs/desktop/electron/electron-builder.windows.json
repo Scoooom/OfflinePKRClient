@@ -1,5 +1,5 @@
 {
-  "appId": "xyz.scooom.pkr",
+  "appId": "PKG_NAME_PLACEHOLDER",
   "productName": "PokeRogue Offline",
   "win": {
     "target": ["portable"],
@@ -10,7 +10,6 @@
   "files": [
     "dist/**/*",
     "main.cjs",
-    "preload.cjs",
     "appIcon.ico",
     "full_unlocks.prsv",
     "node_modules/**/*"

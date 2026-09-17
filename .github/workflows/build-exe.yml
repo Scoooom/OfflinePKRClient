@@ -40,28 +40,38 @@ jobs:
       - name: Configure Git line endings
         run: git config --global core.autocrlf false
 
-      - name: Clone PokeRogue fork
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} https://github.com/pagefaultgames/pokerogue.git pokerogue-src
+      - name: Clone PokeRogue
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
 
       - name: Download full unlocks save file
         shell: bash
         run: |
-          curl -L https://raw.githubusercontent.com/pagefaultgames/pokerogue/beta/test/utils/saves/full_unlocks_sanitized.prsv \
+          REPO_PATH="${PKR_SRC_REPO#https://github.com/}"
+          curl -L "https://raw.githubusercontent.com/${REPO_PATH}/beta/test/utils/saves/full_unlocks_sanitized.prsv" \
             -o pokerogue-src/full_unlocks.prsv
+        env:
+          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
 
       - name: Apply patches
         shell: bash
+        env:
+          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
         run: bash scripts/apply-patches.sh exe
 
-      - name: Inject build number into banner
+      - name: Inject build name and number into banner
         shell: bash
         run: |
           BUILD_NUM=${{ inputs.build_number || github.run_number }}
+          sed -i "s/BUILD_NAME_PLACEHOLDER/${{ vars.BUILD_NAME }}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           if [ "${{ inputs.dev }}" = "true" ]; then
             sed -i "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM} DEV/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           else
             sed -i "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
+
+      - name: Inject package name into Electron config
+        shell: bash
+        run: sed -i "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" configs/desktop/electron/electron-builder.windows.json
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -70,15 +80,6 @@ jobs:
       - name: Install Electron dependencies
         working-directory: pokerogue-src
         run: pnpm add -D electron@43.0.0 electron-builder@26.15.3
-
-      - name: Install Capacitor plugin stub for shared code resolution
-        working-directory: pokerogue-src
-        shell: bash
-        # See the identical step in build-appimage.yml — google-drive-backup.ts
-        # dynamically imports @capgo/capacitor-social-login behind an
-        # isCapacitor() check that's always false here, but Vite/Rolldown
-        # still needs the package resolvable at build time.
-        run: pnpm add @capacitor/core@8.4.1 @capgo/capacitor-social-login@8.3.33
 
       - name: Convert app icon to ICO
         shell: pwsh
@@ -102,16 +103,9 @@ jobs:
         shell: bash
         run: |
           cp configs/desktop/electron/main.cjs pokerogue-src/main.cjs
-          cp configs/desktop/electron/preload.cjs pokerogue-src/preload.cjs
           cp configs/desktop/electron/electron-builder.windows.json pokerogue-src/electron-builder.json
           cp docs/appIcon.ico pokerogue-src/appIcon.ico
           cp pokerogue-src/full_unlocks.prsv pokerogue-src/dist/full_unlocks.prsv
-
-      - name: Inject Google OAuth credentials into main.cjs
-        shell: bash
-        run: |
-          sed -i "s/GOOGLE_DESKTOP_CLIENT_ID_PLACEHOLDER/${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}/g" pokerogue-src/main.cjs
-          sed -i "s/GOOGLE_DESKTOP_CLIENT_SECRET_PLACEHOLDER/${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}/g" pokerogue-src/main.cjs
 
       - name: Set electron main in package.json
         working-directory: pokerogue-src

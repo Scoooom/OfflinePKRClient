@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       dev:
-        description: 'Dev build (dev OAuth client, dev icon/bundle id, -dev naming)'
+        description: 'Dev build (dev icon/bundle id, -dev naming)'
         required: false
         type: boolean
         default: false
@@ -18,7 +18,7 @@ on:
         type: string
         default: 'main'
       version_override:
-        description: 'Override the app version baked into this build (e.g. 1.12.0.0). Lets the installed app report an older version than pagefaultgames/pokerogue currently declares, for testing the update-checker against real existing releases. Leave blank to use whatever upstream currently has.'
+        description: 'Override the app version baked into this build (e.g. 1.12.0.0). Leave blank to use whatever the source repo currently declares.'
         required: false
         type: string
 
@@ -41,8 +41,8 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
-      - name: Clone PokeRogue fork
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} https://github.com/pagefaultgames/pokerogue.git pokerogue-src
+      - name: Clone PokeRogue
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
 
       - name: Get PokeRogue version
         id: pokerogue_version
@@ -65,25 +65,25 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Apply patches
+        env:
+          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
         run: bash ${{ github.workspace }}/scripts/apply-patches.sh mobile
 
-      - name: Inject build number into banner
+      - name: Inject build name and number into banner
         run: |
           BUILD_NUM=${{ inputs.build_number || github.run_number }}
+          sed -i '' "s/BUILD_NAME_PLACEHOLDER/${{ vars.BUILD_NAME }}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           if [ "${{ inputs.dev }}" = "true" ]; then
             sed -i '' "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM} DEV/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
-            sed -i '' "s/Unofficial Offline Client (Scooom)/Unofficial Offline Client (Scooom) Dev/" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           else
             sed -i '' "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
 
-      - name: Inject Google iOS Client ID
+      - name: Inject package name into iOS configs
         run: |
-          if [ "${{ inputs.dev }}" = "true" ]; then
-            sed -i '' "s/IOS_CLIENT_ID_PLACEHOLDER/856587427302-k9ns6u546mgn6vjv1mcks32mn76u1v01.apps.googleusercontent.com/g" pokerogue-src/src/system/offline/google-drive-backup.ts
-          else
-            sed -i '' "s/IOS_CLIENT_ID_PLACEHOLDER/856587427302-ejrsdp1qu750amcjupo943593vmeje1k.apps.googleusercontent.com/g" pokerogue-src/src/system/offline/google-drive-backup.ts
-          fi
+          sed -i '' "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" \
+            ${{ github.workspace }}/configs/ios/capacitor/capacitor.config.json \
+            ${{ github.workspace }}/configs/ios/capacitor/capacitor.config.dev.json
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -92,7 +92,7 @@ jobs:
       - name: Install Capacitor
         working-directory: pokerogue-src
         run: |
-          pnpm add @capacitor/core@8.4.1 @capacitor/cli@8.4.1 @capacitor/ios@8.4.1 @capacitor/filesystem@8.1.2 @capacitor/share@8.0.1 @capacitor/status-bar@8.0.2 @capgo/capacitor-social-login@8.3.33
+          pnpm add @capacitor/core@8.4.1 @capacitor/cli@8.4.1 @capacitor/ios@8.4.1 @capacitor/filesystem@8.1.2 @capacitor/share@8.0.1 @capacitor/status-bar@8.0.2
 
       - name: Configure Capacitor
         working-directory: pokerogue-src
@@ -121,10 +121,6 @@ jobs:
         working-directory: pokerogue-src
         run: npx cap sync ios
 
-      - name: Wire up Google Sign-In URL handling in AppDelegate
-        working-directory: pokerogue-src
-        run: python3 ${{ github.workspace }}/scripts/patch-ios-appdelegate.py ios/App/App/AppDelegate.swift
-
       - name: Set app version
         working-directory: pokerogue-src
         run: |
@@ -152,31 +148,18 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0 dict" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeName string PokéRogue Save Data" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes array" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string xyz.scooom.pkr.prsv" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string ${{ vars.PKG_NAME }}.prsv" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSHandlerRank string Owner" ios/App/App/Info.plist
 
           /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations array" ios/App/App/Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0 dict" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0:UTTypeIdentifier string xyz.scooom.pkr.prsv" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0:UTTypeIdentifier string ${{ vars.PKG_NAME }}.prsv" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0:UTTypeDescription string PokéRogue Save Data" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0:UTTypeConformsTo array" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0:UTTypeConformsTo:0 string public.data" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0:UTTypeTagSpecification dict" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0:UTTypeTagSpecification:public.filename-extension array" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :UTExportedTypeDeclarations:0:UTTypeTagSpecification:public.filename-extension:0 string prsv" ios/App/App/Info.plist
-
-      - name: Register Google Sign-In URL scheme
-        working-directory: pokerogue-src
-        run: |
-          if [ "${{ inputs.dev }}" = "true" ]; then
-            SCHEME="${{ secrets.GOOGLE_IOS_DEV_REVERSED_CLIENT_ID }}"
-          else
-            SCHEME="${{ secrets.GOOGLE_IOS_REVERSED_CLIENT_ID }}"
-          fi
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" ios/App/App/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string ${SCHEME}" ios/App/App/Info.plist
 
       - name: Copy app icon
         run: |
@@ -213,21 +196,6 @@ jobs:
       - name: Get IPA size
         id: ipa_size
         run: echo "size=$(wc -c < ${{ env.IPA_NAME }})" >> $GITHUB_OUTPUT
-
-#      - name: Update AltStore source
-#        env:
-#          APP_VERSION: ${{ steps.pokerogue_version.outputs.version }}
-#          BUILD_NUMBER: ${{ github.run_number }}
-#          IPA_SIZE: ${{ steps.ipa_size.outputs.size }}
-#        run: node scripts/update-altstore-source.js
-#
-#      - name: Commit updated repo.json
-#        run: |
-#          git config user.name "github-actions[bot]"
-#          git config user.email "github-actions[bot]@users.noreply.github.com"
-#          git add docs/repo.json
-#          git commit -m "Update AltStore source for v${{ steps.pokerogue_version.outputs.version }}"
-#          git push
 
       - name: Write version artifact
         run: echo -n "${{ steps.pokerogue_version.outputs.version }}" > version.txt

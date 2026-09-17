@@ -41,25 +41,34 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
-      - name: Clone PokeRogue fork
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} https://github.com/pagefaultgames/pokerogue.git pokerogue-src
+      - name: Clone PokeRogue
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
 
       - name: Download full unlocks save file
         run: |
-          curl -L https://raw.githubusercontent.com/pagefaultgames/pokerogue/beta/test/utils/saves/full_unlocks_sanitized.prsv \
+          REPO_PATH="${PKR_SRC_REPO#https://github.com/}"
+          curl -L "https://raw.githubusercontent.com/${REPO_PATH}/beta/test/utils/saves/full_unlocks_sanitized.prsv" \
             -o pokerogue-src/full_unlocks.prsv
+        env:
+          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
 
       - name: Apply patches
+        env:
+          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
         run: bash ${{ github.workspace }}/scripts/apply-patches.sh macos
 
-      - name: Inject build number into banner
+      - name: Inject build name and number into banner
         run: |
           BUILD_NUM=${{ inputs.build_number || github.run_number }}
+          sed -i '' "s/BUILD_NAME_PLACEHOLDER/${{ vars.BUILD_NAME }}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           if [ "${{ inputs.dev }}" = "true" ]; then
             sed -i '' "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM} DEV/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           else
             sed -i '' "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
+
+      - name: Inject package name into Electron config
+        run: sed -i '' "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" ${{ github.workspace }}/configs/desktop/electron/electron-builder.macos.json
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -68,16 +77,6 @@ jobs:
       - name: Install Electron dependencies
         working-directory: pokerogue-src
         run: pnpm add -D electron@43.0.0 electron-builder@26.15.3
-
-      - name: Install Capacitor plugin stub for shared code resolution
-        working-directory: pokerogue-src
-        # google-drive-backup.ts dynamically imports @capgo/capacitor-social-login,
-        # gated behind an isCapacitor() runtime check that's always false on
-        # Electron — but Vite/Rolldown still needs the package resolvable at
-        # BUILD time to code-split it, even though the chunk never actually
-        # loads here. Without this, the build fails with an unresolved-import
-        # error even on a platform that will never execute that branch.
-        run: pnpm add @capacitor/core@8.4.1 @capgo/capacitor-social-login@8.3.33
 
       - name: Build PokeRogue
         working-directory: pokerogue-src
@@ -111,15 +110,9 @@ jobs:
       - name: Copy Electron config files into place
         run: |
           cp ${{ github.workspace }}/configs/desktop/electron/main.cjs pokerogue-src/main.cjs
-          cp ${{ github.workspace }}/configs/desktop/electron/preload.cjs pokerogue-src/preload.cjs
           cp ${{ github.workspace }}/configs/desktop/electron/electron-builder.macos.json pokerogue-src/electron-builder.json
           cp ${{ github.workspace }}/docs/appIcon.icns pokerogue-src/appIcon.icns
           cp pokerogue-src/full_unlocks.prsv pokerogue-src/dist/full_unlocks.prsv
-
-      - name: Inject Google OAuth credentials into main.cjs
-        run: |
-          sed -i '' "s/GOOGLE_DESKTOP_CLIENT_ID_PLACEHOLDER/${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}/g" pokerogue-src/main.cjs
-          sed -i '' "s/GOOGLE_DESKTOP_CLIENT_SECRET_PLACEHOLDER/${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}/g" pokerogue-src/main.cjs
 
       - name: Set electron main in package.json
         working-directory: pokerogue-src

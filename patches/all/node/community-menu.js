@@ -8,10 +8,10 @@
  *     etc. against the pokerogue API) has no meaning for an offline client.
  *   - REMOVED "Donate" — points at pagefaultgames' own GitHub Sponsors page,
  *     not relevant to this fork.
- *   - ADDED "App GitHub" — opens this fork's own repo
- *     (github.com/PokeRogue-Offline/pokerogue-offline), placed right after
- *     the existing upstream "GitHub" entry so the two repo links sit
- *     together.
+ *   - ADDED "App GitHub" — opens whichever repo is actually running this
+ *     build, resolved from the GITHUB_REPOSITORY env var GitHub Actions
+ *     sets automatically on every job (owner/repo). Placed right after the
+ *     existing upstream "GitHub" entry so the two repo links sit together.
  *
  * Wiki/Discord/GitHub/Reddit and the Cancel entry are untouched.
  *
@@ -59,13 +59,32 @@ const ADMIN_IMPORT_ANCHOR = `import { AdminMode, getAdminModeName } from "#enums
 requireAnchor(src, ADMIN_IMPORT_ANCHOR, "AdminMode import in menu-ui-handler.ts");
 src = src.replace(ADMIN_IMPORT_ANCHOR, "");
 
-// ── Sub-patch 2: URL constants — add appGithubUrl, drop donateUrl ──────────
+// ── Sub-patch 2: URL constants — self-reference githubUrl + appGithubUrl, drop donateUrl ──
+
+// GITHUB_REPOSITORY ("owner/repo") is set automatically by GitHub Actions on
+// every job — no workflow changes or extra variable needed for this to
+// self-reference whichever repo/fork is actually running the build.
+const APP_GITHUB_URL = process.env.GITHUB_REPOSITORY
+  ? `https://github.com/${process.env.GITHUB_REPOSITORY}`
+  : (() => {
+      console.warn(
+        "WARNING: GITHUB_REPOSITORY is not set (not running under GitHub Actions?). " +
+          "The 'App GitHub' community menu link will be left blank.",
+      );
+      return "";
+    })();
+
+// PKR_SRC_REPO is this pipeline's own repo variable (set on the "Apply
+// patches" workflow step) pointing at whatever game source is being built —
+// no longer necessarily pagefaultgames/pokerogue. Falls back to upstream if
+// unset so this patch still runs standalone/locally.
+const SRC_GITHUB_URL = process.env.PKR_SRC_REPO || "https://github.com/pagefaultgames/pokerogue";
 
 const GITHUB_URL_ANCHOR = `const githubUrl = "https://github.com/pagefaultgames/pokerogue";\n`;
 requireAnchor(src, GITHUB_URL_ANCHOR, "githubUrl constant in menu-ui-handler.ts");
 src = src.replace(
   GITHUB_URL_ANCHOR,
-  `${GITHUB_URL_ANCHOR}const appGithubUrl = "https://github.com/PokeRogue-Offline/pokerogue-offline";\n`,
+  `const githubUrl = "${SRC_GITHUB_URL}";\nconst appGithubUrl = "${APP_GITHUB_URL}";\n`,
 );
 
 const DONATE_URL_ANCHOR = `const donateUrl = "https://github.com/sponsors/pagefaultgames";\n`;

@@ -13,7 +13,7 @@ A fully offline wrapper for PokéRogue, available on iOS, Android, Windows, and 
 ## What's New
 
 ### New Features
-- Added a **Clear All Data** option in Settings → Offline — this deletes all current data. **USE WITH CAUTION**.
+- Added a **Delete Data** option in Pause → Manage Data — this deletes all current data. **USE WITH CAUTION**.
 - This is the **only** offline client that loads the actual server daily seed. Useful when there are special event daily runs.
 - Includes the build number in the banner for support reasons.
 

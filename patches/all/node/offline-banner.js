@@ -7,11 +7,12 @@
  *
  * Changes to src/ui/handlers/title-ui-handler.ts:
  *   1. Adds `isApp` to the import from "#constants/app-constants"
- *   2. Appends " - Unofficial Offline Client (Scooom) Build #<N>" to the
- *      version text when running as the Capacitor app (isApp === true).
+ *   2. Appends " - <name> Build #<N>" to the version text when running as
+ *      the Capacitor app (isApp === true).
  *
- * BUILD_NUMBER_PLACEHOLDER is substituted by the CI workflow via sed before
- * the Vite build runs.
+ * BUILD_NAME_PLACEHOLDER and BUILD_NUMBER_PLACEHOLDER are both substituted
+ * by the CI workflow via sed before the Vite build runs — BUILD_NAME from
+ * the vars.BUILD_NAME repo variable, BUILD_NUMBER from the run number/input.
  *
  * Targets: pokerogue-src/src/ui/handlers/title-ui-handler.ts
  */
@@ -69,7 +70,7 @@ if (!versionMatch) {
 const indent = versionMatch[1];
 const REPLACEMENT =
   `${indent}// offline-banner: append client label when running as Capacitor app.\n` +
-  `${indent}const appText = isApp ? " - Unofficial Offline Client (Scooom) Build #BUILD_NUMBER_PLACEHOLDER" : "";\n` +
+  `${indent}const appText = isApp ? " - BUILD_NAME_PLACEHOLDER Build #BUILD_NUMBER_PLACEHOLDER" : "";\n` +
   `${indent}this.appVersionText.setText("v" + version + betaText + appText);`;
 
 src = src.replace(versionMatch[0], REPLACEMENT);

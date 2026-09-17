@@ -385,9 +385,9 @@ jobs:
 
       # -----------------------------------------------------------------------
       # Non-release run (dev=true, or dev=false on a non-main branch): skip
-      # the GitHub release and AltStore feed update. Each platform's output
-      # is uploaded as its own artifact (not bundled) so downloading e.g.
-      # just the iOS build doesn't pull the others along.
+      # the GitHub release. Each platform's output is uploaded as its own
+      # artifact (not bundled) so downloading e.g. just the iOS build doesn't
+      # pull the others along.
       # -----------------------------------------------------------------------
       - name: Upload iOS artifact
         if: ${{ steps.gate.outputs.is_release != 'true' }}
@@ -470,46 +470,6 @@ jobs:
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Get IPA size
-        if: ${{ steps.gate.outputs.is_release == 'true' }}
-        id: ipa_size
-        run: echo "size=$(wc -c < PokeRogueOffline.ipa)" >> $GITHUB_OUTPUT
-
-      # -----------------------------------------------------------------------
-      # repo.json (the AltStore source) lives permanently on the `seed`
-      # branch now — GitHub Pages (pokerogue-offline.github.io) serves from
-      # `seed`, and that's the URL baked into shipped builds' AltStore source
-      # and repo.json's own iconURL/website fields. `main` no longer carries
-      # a copy, so check out `seed` and update its repo.json directly.
-      # appIcon.png is also re-copied from `main` in case the icon changed.
-      # -----------------------------------------------------------------------
-      - name: Checkout seed branch
-        if: ${{ steps.gate.outputs.is_release == 'true' }}
-        uses: actions/checkout@v4
-        with:
-          ref: seed
-          path: seed-branch
-
-      - name: Update AltStore source on seed branch
-        if: ${{ steps.gate.outputs.is_release == 'true' }}
-        env:
-          APP_VERSION: ${{ steps.version.outputs.version }}
-          BUILD_NUMBER: ${{ steps.build.outputs.number }}
-          IPA_SIZE: ${{ steps.ipa_size.outputs.size }}
-          REPO_JSON_PATH: seed-branch/docs/repo.json
-        run: node scripts/update-altstore-source.js
-
-      - name: Commit AltStore source to seed branch
-        if: ${{ steps.gate.outputs.is_release == 'true' }}
-        run: |
-          cp docs/appIcon.png seed-branch/docs/appIcon.png
-          cd seed-branch
-          git config user.name "ScooomBot"
-          git config user.email "scooombot@scooom.xyz"
-          git add docs/repo.json docs/appIcon.png
-          git diff --staged --quiet || git commit -m "Update AltStore source for v${{ steps.version.outputs.version }}"
-          git push
 
   # -----------------------------------------------------------------------
   # Runs only if the release job is cancelled. Finds any in-progress or
