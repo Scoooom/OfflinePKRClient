@@ -84,7 +84,11 @@ If you already use one of these, sign and install the IPA as you normally would.
 
 ## For forkers: setting up your own build
 
-Everything below happens in your fork's **Settings → Secrets and variables → Actions**.
+Everything below happens in your fork's **Settings → Secrets and variables → Actions**, except one step that isn't a variable at all:
+
+### Workflow permissions (do this first)
+
+Go to **Settings → Actions → General → Workflow permissions** and set it to **"Read and write permissions"**. This repo's default is read-only, and two things need write access via the automatic `GITHUB_TOKEN`: the Android build's one-time debug keystore generation, and `create-release.yaml` publishing GitHub Releases. Skip this and both fail on first use.
 
 ### Repository variables (Settings → Actions → Variables)
 
