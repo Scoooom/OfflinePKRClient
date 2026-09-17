@@ -1,6 +1,6 @@
 {
   "appId": "PKG_NAME_PLACEHOLDERdev",
-  "appName": "PokéRogue Offline Dev",
+  "appName": "APP_DISPLAY_NAME_PLACEHOLDER Dev",
   "webDir": "dist",
   "ios": {
     "contentInset": "never",

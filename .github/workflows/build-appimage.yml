@@ -1,4 +1,4 @@
-name: Build PokeRogueOffline AppImage
+name: Build Offline Client AppImage
 
 on:
   workflow_dispatch:
@@ -41,8 +41,21 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y imagemagick
+
+      - name: Normalize source repo URL
+        id: repo
+        run: |
+          REPO="${{ vars.PKR_SRC_REPO }}"
+          REPO="${REPO%/}"
+          REPO="${REPO%.git}"
+          echo "url=$REPO" >> "$GITHUB_OUTPUT"
+
       - name: Clone PokeRogue
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ steps.repo.outputs.url }}.git pokerogue-src
 
       - name: Get PokeRogue version
         id: pokerogue_version
@@ -64,17 +77,9 @@ jobs:
           VERSION=$(node -p "require('./pokerogue-src/package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download full unlocks save file
-        run: |
-          REPO_PATH="${PKR_SRC_REPO#https://github.com/}"
-          curl -L "https://raw.githubusercontent.com/${REPO_PATH}/beta/test/utils/saves/full_unlocks_sanitized.prsv" \
-            -o pokerogue-src/full_unlocks.prsv
-        env:
-          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
-
       - name: Apply patches
         env:
-          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
+          PKR_SRC_REPO: ${{ steps.repo.outputs.url }}
         run: bash ${{ github.workspace }}/scripts/apply-patches.sh appimage
 
       - name: Inject build name and number into banner
@@ -87,8 +92,11 @@ jobs:
             sed -i "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
 
-      - name: Inject package name into Electron config
-        run: sed -i "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" ${{ github.workspace }}/configs/desktop/electron/electron-builder.appimage.json
+      - name: Inject package/app names into Electron config
+        run: sed -i "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g; s/APP_DISPLAY_NAME_PLACEHOLDER/${{ vars.APP_DISPLAY_NAME }}/g" ${{ github.workspace }}/configs/desktop/electron/electron-builder.appimage.json
+
+      - name: Generate app icons
+        run: bash ${{ github.workspace }}/scripts/generate-icons.sh
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -112,18 +120,19 @@ jobs:
           cp ${{ github.workspace }}/configs/desktop/electron/main.cjs pokerogue-src/main.cjs
           cp ${{ github.workspace }}/configs/desktop/electron/electron-builder.appimage.json pokerogue-src/electron-builder.json
           cp ${{ github.workspace }}/docs/appIcon.png pokerogue-src/appIcon.png
-          cp pokerogue-src/full_unlocks.prsv pokerogue-src/dist/full_unlocks.prsv
 
       - name: Set electron main in package.json
         working-directory: pokerogue-src
+        env:
+          APP_DISPLAY_NAME: ${{ vars.APP_DISPLAY_NAME }}
         run: |
           node -e "
             const pkg = require('./package.json');
-            if (!pkg.description) pkg.description = 'PokeRogue Offline';
-            if (!pkg.author) pkg.author = 'Scooom';
+            pkg.description = process.env.APP_DISPLAY_NAME;
             pkg.main = 'main.cjs';
             require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
           "
+
       - name: Get 3 Num Version
         id: old_ver
         working-directory: pokerogue-src
@@ -133,7 +142,6 @@ jobs:
           VERSION=$(jq -r '.version | sub("(?<v>[0-9]+\\.[0-9]+\\.[0-9]+)\\-(?<h>[0-9]+)"; .v + .h)' package.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Detected Version: '$VERSION'"
-
 
       - name: Generate AppImage
         working-directory: pokerogue-src
@@ -145,11 +153,11 @@ jobs:
       - name: Rename and save AppImage
         id: appimage_path
         run: |
-          FILE=$(find -type f -name "*.AppImage")
+          FILE=$(find . -maxdepth 2 -type f -name "*.AppImage")
           if [ "${{ inputs.dev }}" = "true" ]; then
-            OUTPUT="./PokeRogueOffline-dev.AppImage"
+            OUTPUT="./${{ vars.APP_FILENAME }}-dev.AppImage"
           else
-            OUTPUT="./PokeRogueOffline.AppImage"
+            OUTPUT="./${{ vars.APP_FILENAME }}.AppImage"
           fi
           mv "$FILE" "$OUTPUT"
           echo "AppImage=$OUTPUT" >> $GITHUB_OUTPUT
@@ -157,6 +165,6 @@ jobs:
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-AppImage${{ inputs.dev && '-dev' || '' }}
+          name: ${{ vars.APP_FILENAME }}-AppImage${{ inputs.dev && '-dev' || '' }}
           path: ${{ steps.appimage_path.outputs.AppImage }}
           retention-days: 30

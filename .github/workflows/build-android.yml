@@ -1,4 +1,4 @@
-name: Build PokeRogueOffline APK
+name: Build Offline Client APK
 
 on:
   workflow_dispatch:
@@ -43,8 +43,21 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y imagemagick
+
+      - name: Normalize source repo URL
+        id: repo
+        run: |
+          REPO="${{ vars.PKR_SRC_REPO }}"
+          REPO="${REPO%/}"
+          REPO="${REPO%.git}"
+          echo "url=$REPO" >> "$GITHUB_OUTPUT"
+
       - name: Clone PokeRogue
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ steps.repo.outputs.url }}.git pokerogue-src
 
       - name: Get PokeRogue version
         id: pokerogue_version
@@ -54,7 +67,7 @@ jobs:
 
       - name: Apply patches
         env:
-          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
+          PKR_SRC_REPO: ${{ steps.repo.outputs.url }}
         run: bash ${{ github.workspace }}/scripts/apply-patches.sh android
 
       - name: Inject build name and number into banner
@@ -67,12 +80,15 @@ jobs:
             sed -i "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
 
-      - name: Inject package name into Android configs
+      - name: Inject package/app names into Android configs
         run: |
-          sed -i "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" \
+          sed -i "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g; s/APP_DISPLAY_NAME_PLACEHOLDER/${{ vars.APP_DISPLAY_NAME }}/g" \
             ${{ github.workspace }}/configs/android/capacitor/capacitor.config.json \
             ${{ github.workspace }}/configs/android/capacitor/capacitor.config-dev.json \
             ${{ github.workspace }}/configs/android/java/MainActivity.java
+
+      - name: Generate app icons
+        run: bash ${{ github.workspace }}/scripts/generate-icons.sh
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -133,9 +149,6 @@ jobs:
 
       - name: Copy app icon
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y imagemagick
-
           if [ "${{ inputs.dev }}" = "true" ]; then
             ICON_SRC="${{ github.workspace }}/docs/appIcon-dev.png"
           else
@@ -171,6 +184,10 @@ jobs:
 
       - name: Set version in build.gradle
         working-directory: pokerogue-src/android/app
+        # Requires the source repo's package.json version to be 4-part
+        # (major.minor.patch.hotfix) — this encodes it into Android's
+        # numeric versionCode. A 3-part (or otherwise-shaped) version string
+        # will produce a wrong/empty HOTFIX segment and a bad versionCode.
         run: |
           BUILD_NUM=${{ inputs.build_number || github.run_number }}
           VERSION="${{ steps.pokerogue_version.outputs.version }}"
@@ -208,9 +225,9 @@ jobs:
         run: |
           UNSIGNED="pokerogue-src/android/app/build/outputs/apk/debug/app-debug.apk"
           if [ "${{ inputs.dev }}" = "true" ]; then
-            OUTPUT="PokeRogueOffline-dev.apk"
+            OUTPUT="${{ vars.APP_FILENAME }}-dev.apk"
           else
-            OUTPUT="PokeRogueOffline.apk"
+            OUTPUT="${{ vars.APP_FILENAME }}.apk"
           fi
           cp -v $UNSIGNED $OUTPUT
           echo "APK_NAME=$OUTPUT" >> $GITHUB_ENV
@@ -218,6 +235,6 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-Android${{ inputs.dev && '-dev' || '' }}
+          name: ${{ vars.APP_FILENAME }}-Android${{ inputs.dev && '-dev' || '' }}
           path: ${{ env.APK_NAME }}
           retention-days: 30

@@ -17,6 +17,15 @@ out/
 *.AppImage
 release/
 
+# ── App icons — generated per-run by scripts/generate-icons.sh from
+#    docs/appIcon-master.png (+ optional docs/icon-overrides/*.png).
+#    Never commit these; commit the master/overrides instead.
+docs/appIcon.png
+docs/appIcon-dev.png
+docs/appIcon-adaptive.png
+docs/appIcon.ico
+docs/appIcon.icns
+
 # ── Capacitor / Android ─────────────────────────────────────────────────────
 android/
 !patches/android/

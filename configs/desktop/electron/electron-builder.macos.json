@@ -1,6 +1,6 @@
 {
   "appId": "PKG_NAME_PLACEHOLDER",
-  "productName": "PokeRogue Offline",
+  "productName": "APP_DISPLAY_NAME_PLACEHOLDER",
   "mac": {
     "target": ["dmg"],
     "icon": "appIcon.icns",
@@ -12,7 +12,6 @@
     "dist/**/*",
     "main.cjs",
     "appIcon.icns",
-    "full_unlocks.prsv",
     "node_modules/**/*"
   ]
 }

@@ -1,4 +1,4 @@
-name: Build PokeRogueOffline IPA
+name: Build Offline Client IPA
 
 on:
   workflow_dispatch:
@@ -41,8 +41,16 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
+      - name: Normalize source repo URL
+        id: repo
+        run: |
+          REPO="${{ vars.PKR_SRC_REPO }}"
+          REPO="${REPO%/}"
+          REPO="${REPO%.git}"
+          echo "url=$REPO" >> "$GITHUB_OUTPUT"
+
       - name: Clone PokeRogue
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ steps.repo.outputs.url }}.git pokerogue-src
 
       - name: Get PokeRogue version
         id: pokerogue_version
@@ -66,7 +74,7 @@ jobs:
 
       - name: Apply patches
         env:
-          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
+          PKR_SRC_REPO: ${{ steps.repo.outputs.url }}
         run: bash ${{ github.workspace }}/scripts/apply-patches.sh mobile
 
       - name: Inject build name and number into banner
@@ -79,11 +87,17 @@ jobs:
             sed -i '' "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
 
-      - name: Inject package name into iOS configs
+      - name: Inject package/app names into iOS configs
         run: |
-          sed -i '' "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" \
+          sed -i '' "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g; s/APP_DISPLAY_NAME_PLACEHOLDER/${{ vars.APP_DISPLAY_NAME }}/g" \
             ${{ github.workspace }}/configs/ios/capacitor/capacitor.config.json \
             ${{ github.workspace }}/configs/ios/capacitor/capacitor.config.dev.json
+
+      - name: Install ImageMagick
+        run: brew install imagemagick
+
+      - name: Generate app icons
+        run: bash ${{ github.workspace }}/scripts/generate-icons.sh
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -185,9 +199,9 @@ jobs:
           mkdir -p Payload
           cp -r "build/App.app" Payload/
           if [ "${{ inputs.dev }}" = "true" ]; then
-            IPA_NAME="PokeRogueOffline-dev.ipa"
+            IPA_NAME="${{ vars.APP_FILENAME }}-dev.ipa"
           else
-            IPA_NAME="PokeRogueOffline.ipa"
+            IPA_NAME="${{ vars.APP_FILENAME }}.ipa"
           fi
           zip -r "$IPA_NAME" Payload
           rm -rf Payload
@@ -203,7 +217,7 @@ jobs:
       - name: Upload IPA and version artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-iOS${{ inputs.dev && '-dev' || '' }}
+          name: ${{ vars.APP_FILENAME }}-iOS${{ inputs.dev && '-dev' || '' }}
           path: |
             ${{ env.IPA_NAME }}
             version.txt

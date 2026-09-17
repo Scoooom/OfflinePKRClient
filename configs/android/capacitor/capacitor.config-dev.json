@@ -1,6 +1,6 @@
 {
   "appId": "PKG_NAME_PLACEHOLDERdev",
-  "appName": "PokéRogue Offline",
+  "appName": "APP_DISPLAY_NAME_PLACEHOLDER",
   "webDir": "dist",
   "android": {
     "backgroundColor": "#000000",

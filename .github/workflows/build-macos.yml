@@ -1,4 +1,4 @@
-name: Build PokeRogueOffline macOS DMG
+name: Build Offline Client macOS DMG
 
 on:
   workflow_dispatch:
@@ -41,20 +41,20 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
-      - name: Clone PokeRogue
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
-
-      - name: Download full unlocks save file
+      - name: Normalize source repo URL
+        id: repo
         run: |
-          REPO_PATH="${PKR_SRC_REPO#https://github.com/}"
-          curl -L "https://raw.githubusercontent.com/${REPO_PATH}/beta/test/utils/saves/full_unlocks_sanitized.prsv" \
-            -o pokerogue-src/full_unlocks.prsv
-        env:
-          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
+          REPO="${{ vars.PKR_SRC_REPO }}"
+          REPO="${REPO%/}"
+          REPO="${REPO%.git}"
+          echo "url=$REPO" >> "$GITHUB_OUTPUT"
+
+      - name: Clone PokeRogue
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ steps.repo.outputs.url }}.git pokerogue-src
 
       - name: Apply patches
         env:
-          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
+          PKR_SRC_REPO: ${{ steps.repo.outputs.url }}
         run: bash ${{ github.workspace }}/scripts/apply-patches.sh macos
 
       - name: Inject build name and number into banner
@@ -67,8 +67,15 @@ jobs:
             sed -i '' "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
 
-      - name: Inject package name into Electron config
-        run: sed -i '' "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" ${{ github.workspace }}/configs/desktop/electron/electron-builder.macos.json
+      - name: Inject package/app names into Electron config
+        run: |
+          sed -i '' "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g; s/APP_DISPLAY_NAME_PLACEHOLDER/${{ vars.APP_DISPLAY_NAME }}/g" ${{ github.workspace }}/configs/desktop/electron/electron-builder.macos.json
+
+      - name: Install ImageMagick
+        run: brew install imagemagick
+
+      - name: Generate app icons
+        run: bash ${{ github.workspace }}/scripts/generate-icons.sh
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -112,15 +119,15 @@ jobs:
           cp ${{ github.workspace }}/configs/desktop/electron/main.cjs pokerogue-src/main.cjs
           cp ${{ github.workspace }}/configs/desktop/electron/electron-builder.macos.json pokerogue-src/electron-builder.json
           cp ${{ github.workspace }}/docs/appIcon.icns pokerogue-src/appIcon.icns
-          cp pokerogue-src/full_unlocks.prsv pokerogue-src/dist/full_unlocks.prsv
 
       - name: Set electron main in package.json
         working-directory: pokerogue-src
+        env:
+          APP_DISPLAY_NAME: ${{ vars.APP_DISPLAY_NAME }}
         run: |
           node -e "
             const pkg = require('./package.json');
-            if (!pkg.description) pkg.description = 'PokeRogue Offline';
-            if (!pkg.author) pkg.author = 'Scooom';
+            pkg.description = process.env.APP_DISPLAY_NAME;
             pkg.main = 'main.cjs';
             require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
           "
@@ -147,9 +154,9 @@ jobs:
         run: |
           FILE=$(find . -type f -name "*.dmg" | head -n1)
           if [ "${{ inputs.dev }}" = "true" ]; then
-            OUTPUT="./PokeRogueOffline-dev-${{ matrix.arch }}.dmg"
+            OUTPUT="./${{ vars.APP_FILENAME }}-dev-${{ matrix.arch }}.dmg"
           else
-            OUTPUT="./PokeRogueOffline-${{ matrix.arch }}.dmg"
+            OUTPUT="./${{ vars.APP_FILENAME }}-${{ matrix.arch }}.dmg"
           fi
           mv "$FILE" "$OUTPUT"
           echo "dmg=$OUTPUT" >> $GITHUB_OUTPUT
@@ -157,6 +164,6 @@ jobs:
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-macOS-${{ matrix.arch }}${{ inputs.dev && '-dev' || '' }}
+          name: ${{ vars.APP_FILENAME }}-macOS-${{ matrix.arch }}${{ inputs.dev && '-dev' || '' }}
           path: ${{ steps.dmg_path.outputs.dmg }}
           retention-days: 30

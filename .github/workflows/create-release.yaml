@@ -20,9 +20,6 @@ permissions:
 
 jobs:
   release:
-    outputs:
-      version: ${{ steps.version.outputs.version }} # This exposes the data
-      is_release: ${{ steps.gate.outputs.is_release }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -300,10 +297,10 @@ jobs:
           TAG: ${{ steps.suffix.outputs.tag }}
         run: |
           ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$IOS_RUN_ID/artifacts" \
-            --jq ".artifacts[] | select(.name == \"PokeRogueOffline-iOS${TAG}\") | .id")
+            --jq ".artifacts[] | select(.name == \"${{ vars.APP_FILENAME }}-iOS${TAG}\") | .id")
           gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > ipa.zip
           unzip ipa.zip -d ipa-out
-          mv "ipa-out/PokeRogueOffline${TAG}.ipa" "./PokeRogueOffline${TAG}.ipa"
+          mv "ipa-out/${{ vars.APP_FILENAME }}${TAG}.ipa" "./${{ vars.APP_FILENAME }}${TAG}.ipa"
 
       - name: Download APK artifact
         env:
@@ -313,10 +310,10 @@ jobs:
           TAG: ${{ steps.suffix.outputs.tag }}
         run: |
           ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$ANDROID_RUN_ID/artifacts" \
-            --jq ".artifacts[] | select(.name == \"PokeRogueOffline-Android${TAG}\") | .id")
+            --jq ".artifacts[] | select(.name == \"${{ vars.APP_FILENAME }}-Android${TAG}\") | .id")
           gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > apk.zip
           unzip apk.zip -d apk-out
-          mv "apk-out/PokeRogueOffline${TAG}.apk" "./PokeRogueOffline${TAG}.apk"
+          mv "apk-out/${{ vars.APP_FILENAME }}${TAG}.apk" "./${{ vars.APP_FILENAME }}${TAG}.apk"
           
       - name: Download AppImage artifact
         env:
@@ -326,10 +323,10 @@ jobs:
           TAG: ${{ steps.suffix.outputs.tag }}
         run: |
           ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$APPIMAGE_RUN_ID/artifacts" \
-            --jq ".artifacts[] | select(.name == \"PokeRogueOffline-AppImage${TAG}\") | .id")
+            --jq ".artifacts[] | select(.name == \"${{ vars.APP_FILENAME }}-AppImage${TAG}\") | .id")
           gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > appimage.zip
           unzip appimage.zip -d appimage-out
-          mv "appimage-out/PokeRogueOffline${TAG}.AppImage" "./PokeRogueOffline${TAG}.AppImage"
+          mv "appimage-out/${{ vars.APP_FILENAME }}${TAG}.AppImage" "./${{ vars.APP_FILENAME }}${TAG}.AppImage"
           
       - name: Download Windows EXE artifact
         env:
@@ -339,10 +336,10 @@ jobs:
           TAG: ${{ steps.suffix.outputs.tag }}
         run: |
           ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$WINDOWS_RUN_ID/artifacts" \
-            --jq ".artifacts[] | select(.name == \"PokeRogueOffline-Windows${TAG}\") | .id")
+            --jq ".artifacts[] | select(.name == \"${{ vars.APP_FILENAME }}-Windows${TAG}\") | .id")
           gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > windows.zip
           unzip windows.zip -d windows-out
-          mv "windows-out/PokeRogueOffline${TAG}.exe" "./PokeRogueOffline${TAG}.exe"
+          mv "windows-out/${{ vars.APP_FILENAME }}${TAG}.exe" "./${{ vars.APP_FILENAME }}${TAG}.exe"
 
       - name: Download macOS x64 DMG artifact
         env:
@@ -352,10 +349,10 @@ jobs:
           TAG: ${{ steps.suffix.outputs.tag }}
         run: |
           ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$MACOS_RUN_ID/artifacts" \
-            --jq ".artifacts[] | select(.name == \"PokeRogueOffline-macOS-x64${TAG}\") | .id")
+            --jq ".artifacts[] | select(.name == \"${{ vars.APP_FILENAME }}-macOS-x64${TAG}\") | .id")
           gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > macos-x64.zip
           unzip macos-x64.zip -d macos-x64-out
-          mv "macos-x64-out/PokeRogueOffline${TAG}-x64.dmg" "./PokeRogueOffline${TAG}-x64.dmg"
+          mv "macos-x64-out/${{ vars.APP_FILENAME }}${TAG}-x64.dmg" "./${{ vars.APP_FILENAME }}${TAG}-x64.dmg"
 
       - name: Download macOS arm64 DMG artifact
         env:
@@ -365,10 +362,10 @@ jobs:
           TAG: ${{ steps.suffix.outputs.tag }}
         run: |
           ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$MACOS_RUN_ID/artifacts" \
-            --jq ".artifacts[] | select(.name == \"PokeRogueOffline-macOS-arm64${TAG}\") | .id")
+            --jq ".artifacts[] | select(.name == \"${{ vars.APP_FILENAME }}-macOS-arm64${TAG}\") | .id")
           gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > macos-arm64.zip
           unzip macos-arm64.zip -d macos-arm64-out
-          mv "macos-arm64-out/PokeRogueOffline${TAG}-arm64.dmg" "./PokeRogueOffline${TAG}-arm64.dmg"
+          mv "macos-arm64-out/${{ vars.APP_FILENAME }}${TAG}-arm64.dmg" "./${{ vars.APP_FILENAME }}${TAG}-arm64.dmg"
 
 
       # -----------------------------------------------------------------------
@@ -393,48 +390,48 @@ jobs:
         if: ${{ steps.gate.outputs.is_release != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-iOS-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
-          path: PokeRogueOffline${{ steps.suffix.outputs.tag }}.ipa
+          name: ${{ vars.APP_FILENAME }}-iOS-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
+          path: ${{ vars.APP_FILENAME }}${{ steps.suffix.outputs.tag }}.ipa
           retention-days: 30
 
       - name: Upload Android artifact
         if: ${{ steps.gate.outputs.is_release != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-Android-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
-          path: PokeRogueOffline${{ steps.suffix.outputs.tag }}.apk
+          name: ${{ vars.APP_FILENAME }}-Android-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
+          path: ${{ vars.APP_FILENAME }}${{ steps.suffix.outputs.tag }}.apk
           retention-days: 30
 
       - name: Upload AppImage artifact
         if: ${{ steps.gate.outputs.is_release != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-AppImage-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
-          path: PokeRogueOffline${{ steps.suffix.outputs.tag }}.AppImage
+          name: ${{ vars.APP_FILENAME }}-AppImage-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
+          path: ${{ vars.APP_FILENAME }}${{ steps.suffix.outputs.tag }}.AppImage
           retention-days: 30
 
       - name: Upload Windows artifact
         if: ${{ steps.gate.outputs.is_release != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-Windows-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
-          path: PokeRogueOffline${{ steps.suffix.outputs.tag }}.exe
+          name: ${{ vars.APP_FILENAME }}-Windows-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
+          path: ${{ vars.APP_FILENAME }}${{ steps.suffix.outputs.tag }}.exe
           retention-days: 30
 
       - name: Upload macOS x64 artifact
         if: ${{ steps.gate.outputs.is_release != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-macOS-x64-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
-          path: PokeRogueOffline${{ steps.suffix.outputs.tag }}-x64.dmg
+          name: ${{ vars.APP_FILENAME }}-macOS-x64-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
+          path: ${{ vars.APP_FILENAME }}${{ steps.suffix.outputs.tag }}-x64.dmg
           retention-days: 30
 
       - name: Upload macOS arm64 artifact
         if: ${{ steps.gate.outputs.is_release != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-macOS-arm64-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
-          path: PokeRogueOffline${{ steps.suffix.outputs.tag }}-arm64.dmg
+          name: ${{ vars.APP_FILENAME }}-macOS-arm64-v${{ steps.version.outputs.version }}-${{ steps.build.outputs.number }}
+          path: ${{ vars.APP_FILENAME }}${{ steps.suffix.outputs.tag }}-arm64.dmg
           retention-days: 30
 
       # -----------------------------------------------------------------------
@@ -448,25 +445,25 @@ jobs:
           name: v${{ steps.version.outputs.version }}
           prerelease: true
           body: |
-            ## PokeRogueOffline v${{ steps.version.outputs.version }}
+            ## ${{ vars.APP_DISPLAY_NAME }} v${{ steps.version.outputs.version }}
 
             <!-- changelog:start -->
             <!-- changelog:end -->
 
-            - **PokeRogueOffline.ipa** — iOS (sideload via SideStore / LiveContainer / Feather)
-            - **PokeRogueOffline.apk** — Android (sideload by enabling "Install unknown apps")
-            - **PokeRogueOffline.AppImage** — Linux AppImage
-            - **PokeRogueOffline.exe** — Windows Portable EXE
-            - **PokeRogueOffline-x64.dmg** — macOS (Intel)
-            - **PokeRogueOffline-arm64.dmg** — macOS (Apple Silicon)
+            - **${{ vars.APP_FILENAME }}.ipa** — iOS (sideload via SideStore / LiveContainer / Feather)
+            - **${{ vars.APP_FILENAME }}.apk** — Android (sideload by enabling "Install unknown apps")
+            - **${{ vars.APP_FILENAME }}.AppImage** — Linux AppImage
+            - **${{ vars.APP_FILENAME }}.exe** — Windows Portable EXE
+            - **${{ vars.APP_FILENAME }}-x64.dmg** — macOS (Intel)
+            - **${{ vars.APP_FILENAME }}-arm64.dmg** — macOS (Apple Silicon)
 
           files: |
-            PokeRogueOffline.ipa
-            PokeRogueOffline.apk
-            PokeRogueOffline.AppImage
-            PokeRogueOffline.exe
-            PokeRogueOffline-x64.dmg
-            PokeRogueOffline-arm64.dmg
+            ${{ vars.APP_FILENAME }}.ipa
+            ${{ vars.APP_FILENAME }}.apk
+            ${{ vars.APP_FILENAME }}.AppImage
+            ${{ vars.APP_FILENAME }}.exe
+            ${{ vars.APP_FILENAME }}-x64.dmg
+            ${{ vars.APP_FILENAME }}-arm64.dmg
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -508,39 +505,3 @@ jobs:
           cancel_active_runs "build-appimage.yml" "AppImage"
           cancel_active_runs "build-exe.yml" "Windows"
           cancel_active_runs "build-macos.yml" "macOS"
-
-
-  notify:
-    needs: release
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Send ntfy notification
-        env:
-          STATUS: ${{ needs.release.result }}
-          VERSION: ${{ needs.release.outputs.version }}
-          IS_RELEASE: ${{ needs.release.outputs.is_release }}
-        run: |
-          if [ "$STATUS" == "success" ] && [ "$IS_RELEASE" == "true" ]; then
-            TITLE="Release Successful! 🚀"
-            TAGS="rocket,white_check_mark"
-            MSG="PokeRogueOffline v$VERSION is live."
-          elif [ "$STATUS" == "success" ]; then
-            TITLE="Build Artifacts Ready 🧪"
-            TAGS="test_tube,white_check_mark"
-            MSG="PokeRogueOffline v$VERSION built successfully — outputs are attached as workflow artifacts (no release published)."
-          elif [ "$IS_RELEASE" == "true" ]; then
-            TITLE="Release Failed! ❌"
-            TAGS="warning,skull"
-            MSG="The release workflow for PokeRogueOffline v$VERSION failed."
-          else
-            TITLE="Build Failed! ❌"
-            TAGS="warning,skull"
-            MSG="The build workflow for PokeRogueOffline v$VERSION failed."
-          fi
-          curl -H "Title: $TITLE" \
-               -H "Tags: $TAGS" \
-               -H "Markdown: yes" \
-               -H "Click: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-               -d "$MSG" \
-               ${{ secrets.NTFY_URL }}

@@ -1,4 +1,4 @@
-name: Build PokeRogueOffline Windows EXE
+name: Build Offline Client Windows EXE
 
 on:
   workflow_dispatch:
@@ -40,22 +40,22 @@ jobs:
       - name: Configure Git line endings
         run: git config --global core.autocrlf false
 
-      - name: Clone PokeRogue
-        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ vars.PKR_SRC_REPO }}.git pokerogue-src
-
-      - name: Download full unlocks save file
+      - name: Normalize source repo URL
+        id: repo
         shell: bash
         run: |
-          REPO_PATH="${PKR_SRC_REPO#https://github.com/}"
-          curl -L "https://raw.githubusercontent.com/${REPO_PATH}/beta/test/utils/saves/full_unlocks_sanitized.prsv" \
-            -o pokerogue-src/full_unlocks.prsv
-        env:
-          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
+          REPO="${{ vars.PKR_SRC_REPO }}"
+          REPO="${REPO%/}"
+          REPO="${REPO%.git}"
+          echo "url=$REPO" >> "$GITHUB_OUTPUT"
+
+      - name: Clone PokeRogue
+        run: git clone --recurse-submodules --depth 1 --branch ${{ inputs.branch || 'main' }} ${{ steps.repo.outputs.url }}.git pokerogue-src
 
       - name: Apply patches
         shell: bash
         env:
-          PKR_SRC_REPO: ${{ vars.PKR_SRC_REPO }}
+          PKR_SRC_REPO: ${{ steps.repo.outputs.url }}
         run: bash scripts/apply-patches.sh exe
 
       - name: Inject build name and number into banner
@@ -69,9 +69,9 @@ jobs:
             sed -i "s/BUILD_NUMBER_PLACEHOLDER/${BUILD_NUM}/g" pokerogue-src/src/ui/handlers/title-ui-handler.ts
           fi
 
-      - name: Inject package name into Electron config
+      - name: Inject package/app names into Electron config
         shell: bash
-        run: sed -i "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g" configs/desktop/electron/electron-builder.windows.json
+        run: sed -i "s/PKG_NAME_PLACEHOLDER/${{ vars.PKG_NAME }}/g; s/APP_DISPLAY_NAME_PLACEHOLDER/${{ vars.APP_DISPLAY_NAME }}/g" configs/desktop/electron/electron-builder.windows.json
 
       - name: Install PokeRogue dependencies
         working-directory: pokerogue-src
@@ -80,6 +80,10 @@ jobs:
       - name: Install Electron dependencies
         working-directory: pokerogue-src
         run: pnpm add -D electron@43.0.0 electron-builder@26.15.3
+
+      - name: Generate app icons
+        shell: bash
+        run: bash scripts/generate-icons.sh
 
       - name: Convert app icon to ICO
         shell: pwsh
@@ -105,21 +109,20 @@ jobs:
           cp configs/desktop/electron/main.cjs pokerogue-src/main.cjs
           cp configs/desktop/electron/electron-builder.windows.json pokerogue-src/electron-builder.json
           cp docs/appIcon.ico pokerogue-src/appIcon.ico
-          cp pokerogue-src/full_unlocks.prsv pokerogue-src/dist/full_unlocks.prsv
 
       - name: Set electron main in package.json
         working-directory: pokerogue-src
         shell: bash
+        env:
+          APP_DISPLAY_NAME: ${{ vars.APP_DISPLAY_NAME }}
         run: |
           node -e "
             const pkg = require('./package.json');
-            if (!pkg.description) pkg.description = 'PokeRogue Offline';
-            if (!pkg.author) pkg.author = 'Scooom';
+            pkg.description = process.env.APP_DISPLAY_NAME;
             pkg.main = 'main.cjs';
             require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
           "
-          
-          
+
       - name: Get 3 Num Version
         id: old_ver
         working-directory: pokerogue-src
@@ -143,11 +146,11 @@ jobs:
         id: exe_path
         shell: bash
         run: |
-          FILE=$(find -type f -name "PokeRogue*Offline*.exe" | head -n1)
+          FILE=$(find . -maxdepth 2 -type f -name "*.exe" | head -n1)
           if [ "${{ inputs.dev }}" = "true" ]; then
-            OUTPUT="./PokeRogueOffline-dev.exe"
+            OUTPUT="./${{ vars.APP_FILENAME }}-dev.exe"
           else
-            OUTPUT="./PokeRogueOffline.exe"
+            OUTPUT="./${{ vars.APP_FILENAME }}.exe"
           fi
           mv "$FILE" "$OUTPUT"
           echo "exe=$OUTPUT" >> $GITHUB_OUTPUT
@@ -155,6 +158,6 @@ jobs:
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PokeRogueOffline-Windows${{ inputs.dev && '-dev' || '' }}
+          name: ${{ vars.APP_FILENAME }}-Windows${{ inputs.dev && '-dev' || '' }}
           path: ${{ steps.exe_path.outputs.exe }}
           retention-days: 30

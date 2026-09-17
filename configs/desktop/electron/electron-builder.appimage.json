@@ -1,6 +1,6 @@
 {
   "appId": "PKG_NAME_PLACEHOLDER",
-  "productName": "PokeRogue Offline",
+  "productName": "APP_DISPLAY_NAME_PLACEHOLDER",
   "linux": {
     "target": ["AppImage"],
     "category": "Game",
@@ -10,7 +10,6 @@
     "dist/**/*",
     "main.cjs",
     "appIcon.png",
-    "full_unlocks.prsv",
     "node_modules/**/*"
   ]
 }
