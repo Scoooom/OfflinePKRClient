@@ -207,10 +207,58 @@ jobs:
         working-directory: pokerogue-src/android
         run: chmod +x gradlew
 
-      - name: Restore pinned debug keystore
+      - name: Ensure debug keystore exists
+        # This fork's own configs/android/debug.keystore is committed the
+        # first time any build needs it (this step), then reused by every
+        # build after — signing must stay consistent across builds or
+        # Android refuses to install an update over the existing app.
+        # Not a secret: Android debug keystores use fixed, publicly
+        # documented passwords by convention (same ones Android Studio
+        # generates locally for every developer). What needs to be unique
+        # per fork is the key material itself, not these values.
+        run: |
+          KEYSTORE="${{ github.workspace }}/configs/android/debug.keystore"
+
+          if [ -f "$KEYSTORE" ]; then
+            echo "Debug keystore already committed to this fork, using it."
+            exit 0
+          fi
+
+          echo "No debug keystore in this fork yet — generating one now."
+          mkdir -p "$(dirname "$KEYSTORE")"
+          keytool -genkey -v -keystore "$KEYSTORE" \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug, O=Android, C=US"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f "$KEYSTORE"
+          git commit -m "Generate debug keystore for Android builds"
+
+          for i in 1 2 3; do
+            if git push origin "HEAD:${{ github.ref_name }}"; then
+              echo "Committed and pushed the new keystore."
+              exit 0
+            fi
+            echo "Push rejected (another run may have generated one first) — checking..."
+            git fetch origin "${{ github.ref_name }}"
+            if git cat-file -e "origin/${{ github.ref_name }}:configs/android/debug.keystore" 2>/dev/null; then
+              echo "Another run already committed a keystore for this fork — using theirs instead."
+              git checkout "origin/${{ github.ref_name }}" -- "$KEYSTORE"
+              exit 0
+            fi
+            git rebase "origin/${{ github.ref_name }}"
+            sleep $((RANDOM % 4 + 1))
+          done
+
+          echo "ERROR: could not commit the generated keystore after 3 attempts." >&2
+          exit 1
+
+      - name: Copy debug keystore
         run: |
           mkdir -p ~/.android
-          echo "${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}" | base64 -d > ~/.android/debug.keystore
+          cp ${{ github.workspace }}/configs/android/debug.keystore ~/.android/debug.keystore
 
       - name: Build release APK
         working-directory: pokerogue-src/android

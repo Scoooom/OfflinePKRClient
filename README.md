@@ -96,21 +96,7 @@ Everything below happens in your fork's **Settings → Secrets and variables →
 | `APP_DISPLAY_NAME` | `My PokéGame Offline` | Can have spaces — the name shown on-device (home screen / dock), plus the release title and package metadata. |
 | `BUILD_NAME` | `Unofficial Offline Client` | Shown in the title-screen version banner, followed by the build number. |
 
-### Repository secrets (Settings → Actions → Secrets)
-
-| Secret | Required for | Notes |
-|---|---|---|
-| `ANDROID_DEBUG_KEYSTORE_B64` | Android builds | A base64-encoded Android debug keystore, used to sign the debug APK consistently across builds (so updates install over each other instead of conflicting). Generate one with: |
-
-```bash
-keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey \
-  -keypass android -keyalg RSA -keysize 2048 -validity 10000
-
-base64 -i debug.keystore | tr -d '\n' | pbcopy   # macOS — copies to clipboard
-base64 -w0 debug.keystore                         # Linux — prints to stdout
-```
-
-Paste the resulting base64 string in as the secret value. `GITHUB_TOKEN` is provided automatically by Actions — nothing to set up there.
+No secrets to set up. `GITHUB_TOKEN` is provided automatically by Actions. Android signing uses a debug keystore that's generated automatically the first time any Android build runs on your fork, then committed back to `configs/android/debug.keystore` and reused by every build after — signing has to stay consistent across builds, or Android refuses to install an update over the app you already have installed. Nothing to do here manually; the first Android build (or the first `create-release.yaml` run) handles it.
 
 ### App icon
 

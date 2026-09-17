@@ -32,6 +32,9 @@ android/
 *.apk
 *.aab
 *.keystore
+# ...except the per-fork Android debug keystore, auto-generated and
+# committed by build-android.yml on its first run — see README.
+!configs/android/debug.keystore
 *.jks
 
 # ── Capacitor / iOS ──────────────────────────────────────────────────────────
