@@ -29,6 +29,24 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Validate required repo variables
+        shell: bash
+        run: |
+          MISSING=0
+          check_var() {
+            if [ -z "$2" ]; then
+              echo "::error::Missing required repository variable: $1 (Settings -> Secrets and variables -> Actions -> Variables — see README)"
+              MISSING=1
+            fi
+          }
+          check_var "PKR_SRC_REPO" "${{ vars.PKR_SRC_REPO }}"
+          check_var "PKG_NAME" "${{ vars.PKG_NAME }}"
+          check_var "APP_FILENAME" "${{ vars.APP_FILENAME }}"
+          check_var "APP_DISPLAY_NAME" "${{ vars.APP_DISPLAY_NAME }}"
+          check_var "BUILD_NAME" "${{ vars.BUILD_NAME }}"
+          [ "$MISSING" -eq 1 ] && exit 1
+          exit 0
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
