@@ -170,7 +170,7 @@ jobs:
       - name: Rename and save AppImage
         id: appimage_path
         run: |
-          FILE=$(find . -maxdepth 2 -type f -name "*.AppImage")
+          FILE=$(find . -maxdepth 4 -type f -name "*.AppImage")
           if [ "${{ inputs.dev }}" = "true" ]; then
             OUTPUT="./${{ vars.APP_FILENAME }}-dev.AppImage"
           else

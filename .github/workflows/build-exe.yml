@@ -164,7 +164,7 @@ jobs:
         id: exe_path
         shell: bash
         run: |
-          FILE=$(find . -maxdepth 2 -type f -name "*.exe" | head -n1)
+          FILE=$(find . -maxdepth 4 -type f -name "*.exe" | head -n1)
           if [ "${{ inputs.dev }}" = "true" ]; then
             OUTPUT="./${{ vars.APP_FILENAME }}-dev.exe"
           else
