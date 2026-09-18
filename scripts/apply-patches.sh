@@ -17,7 +17,6 @@ source "$(dirname "$0")/patch-lib.sh"
 apply_patch "offline-banner.js"       all
 apply_patch "update-title-labels.js"  all
 apply_patch "community-menu.js"       all
-apply_patch "manage-data-delete.js"   all
 
 # ── Mobile (iOS + Android) ────────────────────────────────────────────────────
 if [[ "$PLATFORM" == "mobile" || "$PLATFORM" == "android" ]]; then
